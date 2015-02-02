@@ -28,8 +28,140 @@
 <html>
 <head>
 <title>XTK LESSON 13</title>
-<script type="text/javascript" src="http://get.goXTK.com/xtk_edge.js"></script>
+<!-- <script type="text/javascript" src="http://get.goXTK.com/xtk_edge.js"></script>-->
 <script type="text/javascript" src="http://get.goXTK.com/xtk_xdat.gui.js"></script>
+<script type="text/javascript" src="../../X/lib/google-closure-library/closure/goog/base.js"></script>
+<script type="text/javascript" src="../../X/xtk-deps.js"></script>
+<!-- we want some 3JS! -->
+<script src="http://threejs.org/build/three.js"></script>
+<script src="http://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script id="vertShader" type="shader">
+
+uniform mat4 rastoijk;
+
+varying vec4 vPos;
+varying vec2 vUv;
+
+void main() {
+    vPos = modelMatrix * vec4(position, 1.0 );
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0 );
+
+}
+</script>
+<script id="fragShader" type="shader">
+precision highp float;
+precision highp sampler2D;
+
+vec4 getIJKValue( sampler2D tex0, sampler2D tex1, sampler2D tex2, sampler2D tex3, vec3 ijkCoordinates, vec3 ijkDimensions) {
+
+    // IJK coord to texture
+    highp float textureSize = 2048.0;
+    highp float index = ijkCoordinates[0] + ijkCoordinates[1]*ijkDimensions[0] + ijkCoordinates[2]*ijkDimensions[0]*ijkDimensions[1];
+
+    // map index to right 2048 x 2048 slice
+    highp float sliceIndex = floor(index / (textureSize*textureSize));
+    highp float inTextureIndex = mod(index, textureSize*textureSize);
+
+    vec2 sliceSize = vec2(1.0 / textureSize,             // u space of 1 slice
+                        1.0 / textureSize);  
+
+    // get row in the texture - should retrun 32 different values...
+    highp float rowIndex = floor(inTextureIndex/textureSize);
+    highp float colIndex = mod(inTextureIndex, textureSize);
+
+    // good row/col indices
+    
+    // map i to u
+    highp float u = colIndex*sliceSize.x - sliceSize.x*.05;
+    highp float v = 1.0 - (rowIndex*sliceSize.y - sliceSize.y*.05);
+
+    highp vec2 uv = vec2(u,v);
+    vec4 ijkValue = vec4(0, 0, 0, 0);
+    if(sliceIndex == float(0)){
+      ijkValue = texture2D(tex0, uv);
+    }
+    else if(sliceIndex == float(1)){
+      ijkValue = texture2D(tex1, uv);
+    }
+    else if(sliceIndex == float(2)){
+      ijkValue = texture2D(tex2, uv);
+    }
+    else if(sliceIndex == float(3)){
+      ijkValue = texture2D(tex3, uv);
+    }
+
+    // ijkValue = vec4(u, u, u, 1);
+
+    // if(u > 1.0){
+    //   ijkValue = vec4(0, u, 0, 1);
+    // }
+
+    //     if(v > 1.0){
+    //   ijkValue = vec4(v, u, 0, 1);
+    // }
+
+
+    // ijkValue = vec4(v, u, sliceIndex/4.0, 1);
+    // // expect coloful thing
+    // // OK
+      // ijkValue = vec4(ijkCoordinates.xyx/ijkDimensions.xyz, 1);
+
+      // 
+   // }
+  // ijkValue = vec4(floor(ijkCoordinates[0])/ijkDimensions[0], ijkCoordinates[1]/ijkDimensions[1], ijkCoordinates[2]/ijkDimensions[2], 1);
+    // // expect vertical gradient
+    // // OK
+    // ijkValue = vec4(ijkCoordinates[0]/ijkDimensions[0], ijkCoordinates[0]/ijkDimensions[0], ijkCoordinates[0]/ijkDimensions[0], 1);
+    // ijkValue = vec4(ijkCoordinates[1]/ijkDimensions[1], ijkCoordinates[1]/ijkDimensions[1], ijkCoordinates[1]/ijkDimensions[1], 1);
+    // ijkValue = vec4(ijkCoordinates[2]/ijkDimensions[2], ijkCoordinates[2]/ijkDimensions[2], ijkCoordinates[2]/ijkDimensions[2], 1);
+    // //
+    // ijkValue = vec4(sliceIndexNorm, sliceIndexNorm, sliceIndexNorm, 1);
+    //     //
+    //ijkValue = vec4(colIndexNorm, colIndexNorm, colIndexNorm, 1);
+
+    return ijkValue;
+  }
+
+uniform mat4 rastoijk;
+uniform sampler2D ijk00;
+uniform sampler2D ijk01;
+uniform sampler2D ijk02;
+uniform sampler2D ijk03;
+uniform vec3 ijkDimensions;
+
+varying vec4 vPos;
+varying vec2 vUv;
+
+void main(void) {
+    // get IJK coordinates of current element
+    vec4 ijkPos = rastoijk * vPos;
+    
+    //convert IJK coordinates to texture coordinates
+    if(int(floor(ijkPos[0])) > 0
+      && int(floor(ijkPos[1])) > 0
+      && int(floor(ijkPos[2])) > 0
+      && int(floor(ijkPos[0])) < int(ijkDimensions[0])
+      && int(floor(ijkPos[1])) < int(ijkDimensions[1])
+      && int(floor(ijkPos[2])) < int(ijkDimensions[2])
+      ){
+       // show whole texture in the back...
+      vec3 color = texture2D(ijk00, vUv).rgb;
+      // try to map IJK to value...
+      vec3 ijkCoordinates = vec3(floor(ijkPos[0]), floor(ijkPos[1]), floor(ijkPos[2]));
+      vec4 ijkValue = getIJKValue(ijk00, ijk01, ijk02, ijk03, ijkCoordinates, ijkDimensions);
+      color.rgb = ijkValue.rgb;
+      gl_FragColor = vec4(color, 1.0);
+    }
+    else{
+      discard;
+    }
+    
+    
+    
+  }
+</script>
+
 <script type="text/javascript" src="demo.js"></script>
 <link rel="stylesheet" type="text/css" href="demo.css">
 </head>
